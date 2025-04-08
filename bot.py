@@ -84,6 +84,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+    print(f"Mensagem recebida: {message.content}")
     if not message.author.bot:
         process_message(message)
 
