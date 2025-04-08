@@ -1,63 +1,54 @@
-import os
 import discord
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import os
+import json
+import asyncio
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
-# Configurar Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(creds)
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS")
 
-# Abrir a planilha
-SHEET_NAME = "Teste de Bot  PLANILHA DE CONTROLE FARM"  # Substitua pelo nome da planilha
-spreadsheet = client.open(SHEET_NAME)
+# Carregar credenciais do Google Cloud a partir da variável de ambiente
+credentials_info = json.loads(CREDENTIALS_JSON)
+credentials = service_account.Credentials.from_service_account_info(credentials_info)
+service = build("sheets", "v4", credentials=credentials)
 
-# Configurar o bot do Discord
+# Configuração do bot
 intents = discord.Intents.default()
-intents.messages = True
 client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
-    print(f'✅ Bot conectado como {client.user}')
+    print(f'Bot {client.user} está online!')
 
 @client.event
 async def on_message(message):
-    if message.author.bot:
+    if message.author == client.user:
         return
-    
-    # Verifica se a mensagem tem "Guardou" e "Alumínio"
-    if "Guardou" in message.content and "Alumínio" in message.content:
-        lines = message.content.split("\n")
-        passport_id = None
-        quantity = 0
 
-        for line in lines:
-            if line.startswith("Passaporte:"):
-                passport_id = line.split(":")[1].strip()
-            elif "Guardou" in line and "Alumínio" in line:
-                quantity = int(line.split(" ")[1].replace("x", "").strip())
+    if "Guardou" in message.content:
+        try:
+            lines = message.content.split("\n")
+            passaporte = lines[0].split(":")[1].strip()
+            quantidade = int(lines[1].split("x")[0].split(":")[1].strip())
 
-        if passport_id and quantity > 0:
-            # Identificar o dia da semana e a aba correta
-            from datetime import datetime
-            weekdays = ["SEG/TER", "QUA/QUI", "SEX/SAB"]
-            today = datetime.today().weekday()
-            sheet_name = weekdays[today // 2]  # Cada aba cobre 2 dias
+            # Atualizar planilha do Google Sheets
+            sheet = service.spreadsheets()
+            SPREADSHEET_ID = "SUA_PLANILHA_ID"
+            RANGE_NAME = "SEG/TER!A1:C100"
 
-            sheet = spreadsheet.worksheet(sheet_name)
+            values = [[passaporte, "Alumínio", quantidade]]
+            body = {"values": values}
 
-            # Verificar se o passaporte já tem um registro e somar valores
-            cell = sheet.find(passport_id)
-            if cell:
-                current_value = int(sheet.cell(cell.row, 2).value or 0)
-                new_value = current_value + quantity
-                sheet.update_cell(cell.row, 2, new_value)
-            else:
-                sheet.append_row([passport_id, quantity])
+            sheet.values().append(
+                spreadsheetId=SPREADSHEET_ID,
+                range=RANGE_NAME,
+                valueInputOption="RAW",
+                body=body
+            ).execute()
 
-            await message.channel.send(f"✅ Atualizado: Passaporte {passport_id} guardou {quantity}x Alumínio.")
+            await message.channel.send(f"Registrado: {quantidade}x Alumínio para Passaporte {passaporte}")
+        except Exception as e:
+            print(f"Erro: {e}")
 
-# Pegar o token do ambiente
-TOKEN = os.getenv("TOKEN")
 client.run(TOKEN)
