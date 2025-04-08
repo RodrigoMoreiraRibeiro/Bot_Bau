@@ -16,9 +16,8 @@ def home():
 # ======== CONFIGURAÇÕES ======== #
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GSPREAD_CREDENTIALS_BASE64 = os.getenv("GSPREAD_CREDENTIALS_BASE64")
+GSPREAD_CREDENTIALS_BASE64 = os.getenv("GOOGLE_CREDENTIALS")
 SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha no Google Sheets
-CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))  # ID do canal do Discord
 
 # Decodifica as credenciais do Google Sheets
 creds_json = json.loads(base64.b64decode(GSPREAD_CREDENTIALS_BASE64))
