@@ -32,17 +32,7 @@ client = gspread.authorize(creds)
 sheet = client.open(SHEET_NAME)
 
 # Testa acesso à planilha
-SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha
-sheet = client.open(SHEET_NAME)
 print("✅ Conectado à planilha:", sheet.title)
-
-# Testa acesso a uma aba específica
-worksheet = sheet.worksheet("FARM SEG E TER")
-print("✅ Conectado à aba:", worksheet.title)
-
-# Testa escrita
-worksheet.append_row(["Teste", "123"])
-print("✅ Escrita na planilha realizada com sucesso!")
 
 # Configurar Intents do Discord
 intents = discord.Intents.default()
@@ -73,15 +63,28 @@ def update_sheet(passaporte, quantidade):
 
     if cell:
         row = cell.row
-        aba.update_cell(row, coluna, int(aba.cell(row, coluna).value or 0) + quantidade)
+        novo_valor = int(aba.cell(row, coluna).value or 0) + quantidade
+        aba.update_cell(row, coluna, novo_valor)
     else:
-        aba.append_row([passaporte] + [""] * (coluna - 2) + [quantidade])
+        novo_valor = quantidade
+        aba.append_row([passaporte] + [""] * (coluna - 2) + [novo_valor])
 
     print(f"✅ Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}, coluna {coluna}")
+    return f"✅ **Passaporte {passaporte}** registrou **{quantidade}x Alumínio** em `{aba_nome}` na coluna `{coluna}`."
 
-# ======================== FUNÇÃO PARA PROCESSAR MENSAGEM ======================== #
+# ======================== EVENTOS DO DISCORD ======================== #
 
-def process_message(message):
+@client.event
+async def on_ready():
+    print(f'✅ Bot conectado como {client.user}')
+
+@client.event
+async def on_message(message):
+    if message.author.bot:
+        return  # Ignorar mensagens de outros bots
+
+    print(f"📩 Mensagem recebida: {message.content}")
+
     lines = message.content.split("\n")
     passaporte = None
     quantidade = 0
@@ -93,19 +96,8 @@ def process_message(message):
             quantidade = int(line.split("x")[0].split(":")[1].strip())
 
     if passaporte and quantidade > 0:
-        update_sheet(passaporte, quantidade)
-
-# ======================== EVENTOS DO DISCORD ======================== #
-
-@client.event
-async def on_ready():
-    print(f'✅ Bot conectado como {client.user}')
-
-@client.event
-async def on_message(message):
-    print(f"📩 Mensagem recebida: {message.content}")
-    if not message.author.bot:
-        process_message(message)
+        resposta = update_sheet(passaporte, quantidade)
+        await message.channel.send(resposta)  # Envia a resposta no Discord
 
 # ======================== INICIAR O BOT E O FLASK EM PARALELO ======================== #
 
