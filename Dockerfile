@@ -1,17 +1,18 @@
-# Usar imagem base do Python
-FROM python:3.11
+# Usa a imagem oficial do Python
+FROM python:3.10
 
-# Definir diretório de trabalho
+# Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copiar arquivos para o contêiner
-COPY bot.py requirements.txt ./
+# Copia os arquivos do projeto
+COPY requirements.txt requirements.txt
+COPY bot.py bot.py
 
-# Instalar dependências
+# Instala as dependências
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Definir variável de ambiente padrão (pode ser sobrescrita)
-ENV GOOGLE_CREDENTIALS="{}"
+# Expõe a porta que o Cloud Run usa
+EXPOSE 8080
 
-# Executar o bot
+# Comando para rodar o bot
 CMD ["python", "bot.py"]
