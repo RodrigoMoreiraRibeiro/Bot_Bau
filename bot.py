@@ -4,22 +4,23 @@ import base64
 import discord
 import gspread
 import asyncio
-from flask import Flask
 from oauth2client.service_account import ServiceAccountCredentials
+from flask import Flask
+from datetime import datetime
 from threading import Thread
 
-# Configuração do Flask para manter o container ativo no Cloud Run
+# ======================== FLASK (Mantém o Container Ativo no Cloud Run) ======================== #
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot está rodando!", 200
+    return "✅ Bot está rodando!", 200
 
-# ======== CONFIGURAÇÕES ======== #
+# ======================== CONFIGURAÇÕES ======================== #
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
-SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha no Google Sheets
+SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha do Google Sheets
 
 # Decodifica as credenciais do Google Sheets
 creds_json = json.loads(base64.b64decode(GOOGLE_CREDENTIALS))
@@ -30,13 +31,43 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 client = gspread.authorize(creds)
 sheet = client.open(SHEET_NAME)
 
-# Configuração do Discord
+# Configurar Intents do Discord
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
-bot = discord.Client(intents=intents)
+client = discord.Client(intents=intents)
 
-# ======== FUNÇÃO PARA PROCESSAR MENSAGEM ======== #
+# ======================== FUNÇÃO PARA ATUALIZAR A PLANILHA ======================== #
+
+# Mapear abas e colunas conforme o dia da semana
+dias = {
+    0: ("FARM SEG E TER", 5),   # Segunda -> Coluna 5
+    1: ("FARM SEG E TER", 14),  # Terça   -> Coluna 14
+    2: ("FARM QUA E QUI", 5),   # Quarta  -> Coluna 5
+    3: ("FARM QUA E QUI", 14),  # Quinta  -> Coluna 14
+    4: ("FARM SEX E SAB", 5),   # Sexta   -> Coluna 5
+    5: ("FARM SEX E SAB", 14),  # Sábado  -> Coluna 14
+    6: ("FARM DOM", 5)          # Domingo -> Sempre Coluna 5
+}
+
+def update_sheet(passaporte, quantidade):
+    hoje = datetime.today().weekday()
+    aba_nome, coluna = dias[hoje]  # Define qual aba e qual coluna usar
+    aba = sheet.worksheet(aba_nome)
+
+    # Buscar o passaporte na planilha
+    cell = aba.find(str(passaporte))
+
+    if cell:
+        row = cell.row
+        aba.update_cell(row, coluna, int(aba.cell(row, coluna).value or 0) + quantidade)
+    else:
+        aba.append_row([passaporte] + [""] * (coluna - 2) + [quantidade])
+
+    print(f"✅ Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}, coluna {coluna}")
+
+# ======================== FUNÇÃO PARA PROCESSAR MENSAGEM ======================== #
+
 def process_message(message):
     lines = message.content.split("\n")
     passaporte = None
@@ -51,49 +82,24 @@ def process_message(message):
     if passaporte and quantidade > 0:
         update_sheet(passaporte, quantidade)
 
-# ======== FUNÇÃO PARA ATUALIZAR PLANILHA ======== #
-def update_sheet(passaporte, quantidade):
-    from datetime import datetime
+# ======================== EVENTOS DO DISCORD ======================== #
 
-    dias = {
-        0: "SEG/TER", 1: "SEG/TER",
-        2: "QUA/QUI", 3: "QUA/QUI",
-        4: "SEX/SAB", 5: "SEX/SAB",
-        6: "DOM"
-    }
-
-    hoje = datetime.today().weekday()
-    aba_nome = dias[hoje]
-    aba = sheet.worksheet(aba_nome)
-
-    # Busca o passaporte na planilha
-    cell = aba.find(str(passaporte))
-
-    if cell:
-        row = cell.row
-        col = 5  # Coluna onde está o Alumínio
-        aba.update_cell(row, col, int(aba.cell(row, col).value) + quantidade)
-    else:
-        aba.append_row([passaporte, quantidade])
-
-    print(f"✅ Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
-
-# ======== EVENTOS DO BOT DISCORD ======== #
-@bot.event
+@client.event
 async def on_ready():
-    print(f'✅ Bot conectado como {bot.user}')
+    print(f'✅ Bot conectado como {client.user}')
 
-@bot.event
+@client.event
 async def on_message(message):
     print(f"📩 Mensagem recebida: {message.content}")
     if not message.author.bot:
         process_message(message)
 
-# ======== INICIAR O BOT E O FLASK EM PARALELO ======== #
+# ======================== INICIAR O BOT E O FLASK EM PARALELO ======================== #
+
 def run_discord_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(bot.start(DISCORD_TOKEN))
+    loop.run_until_complete(client.start(DISCORD_TOKEN))
 
 if __name__ == "__main__":
     # Rodar o bot do Discord em uma thread separada
