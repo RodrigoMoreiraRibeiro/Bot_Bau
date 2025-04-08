@@ -36,8 +36,9 @@ print("✅ Conectado à planilha:", sheet.title)
 
 # Configurar Intents do Discord
 intents = discord.Intents.default()
-intents.messages = True
-intents.guilds = True
+intents.messages = True  # Permite o bot ler mensagens
+intents.guilds = True    # Permite o bot acessar informações do servidor
+intents.message_content = True  # Permite o bot acessar o conteúdo das mensagens (necessário a partir de 2022)
 client = discord.Client(intents=intents)
 
 # ======================== FUNÇÃO PARA ATUALIZAR A PLANILHA ======================== #
@@ -83,8 +84,14 @@ async def on_message(message):
     if message.author.bot:
         return  # Ignorar mensagens de outros bots
 
-    print(f"📩 Mensagem recebida: {message.content}")
+    # Verifique se a mensagem está no canal correto
+    channel_id = 1356403382918709309  # Substitua pelo ID do canal desejado
+    if message.channel.id != channel_id:
+        return  # Se a mensagem não for do canal correto, ignore
 
+    print(f"📩 Mensagem recebida no canal {message.channel}: {message.content}")
+
+    # Procura pela linha "Passaporte" e "Guardou"
     lines = message.content.split("\n")
     passaporte = None
     quantidade = 0
@@ -95,6 +102,7 @@ async def on_message(message):
         elif "Guardou:" in line and "Alumínio" in line:
             quantidade = int(line.split("x")[0].split(":")[1].strip())
 
+    # Se encontrou os dados de passaporte e quantidade, atualize a planilha
     if passaporte and quantidade > 0:
         resposta = update_sheet(passaporte, quantidade)
         await message.channel.send(resposta)  # Envia a resposta no Discord
