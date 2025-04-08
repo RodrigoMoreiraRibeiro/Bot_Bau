@@ -4,8 +4,9 @@ import base64
 import discord
 import gspread
 import asyncio
-from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask
+from oauth2client.service_account import ServiceAccountCredentials
+from threading import Thread
 
 # Configuração do Flask para manter o container ativo no Cloud Run
 app = Flask(__name__)
@@ -17,11 +18,11 @@ def home():
 # ======== CONFIGURAÇÕES ======== #
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GOOGLE_CREDENTIALS_BASE64 = os.getenv("GOOGLE_CREDENTIALS_BASE64")
+GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha no Google Sheets
 
 # Decodifica as credenciais do Google Sheets
-creds_json = json.loads(base64.b64decode(GOOGLE_CREDENTIALS_BASE64))
+creds_json = json.loads(base64.b64decode(GOOGLE_CREDENTIALS))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(
     creds_json,
     ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -29,11 +30,11 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 client = gspread.authorize(creds)
 sheet = client.open(SHEET_NAME)
 
-# Conectar ao Discord
+# Configuração do Discord
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
-client = discord.Client(intents=intents)
+bot = discord.Client(intents=intents)
 
 # ======== FUNÇÃO PARA PROCESSAR MENSAGEM ======== #
 def process_message(message):
@@ -73,16 +74,16 @@ def update_sheet(passaporte, quantidade):
         col = 5  # Coluna onde está o Alumínio
         aba.update_cell(row, col, int(aba.cell(row, col).value) + quantidade)
     else:
-        aba.append_row([passaporte, "", "", "", quantidade])  # Garante que o Alumínio fica na coluna 5
+        aba.append_row([passaporte, quantidade])
 
     print(f"✅ Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
 
-# ======== EVENTO QUANDO UMA MENSAGEM É ENVIADA NO CANAL ======== #
-@client.event
+# ======== EVENTOS DO BOT DISCORD ======== #
+@bot.event
 async def on_ready():
-    print(f'✅ Bot conectado como {client.user}')
+    print(f'✅ Bot conectado como {bot.user}')
 
-@client.event
+@bot.event
 async def on_message(message):
     print(f"📩 Mensagem recebida: {message.content}")
     if not message.author.bot:
@@ -92,11 +93,9 @@ async def on_message(message):
 def run_discord_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(client.start(DISCORD_TOKEN))
+    loop.run_until_complete(bot.start(DISCORD_TOKEN))
 
 if __name__ == "__main__":
-    from threading import Thread
-
     # Rodar o bot do Discord em uma thread separada
     discord_thread = Thread(target=run_discord_bot)
     discord_thread.start()
