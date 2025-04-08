@@ -3,6 +3,7 @@ import json
 import base64
 import discord
 import gspread
+import asyncio
 from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask
 
@@ -44,10 +45,7 @@ def process_message(message):
         if line.startswith("Passaporte:"):
             passaporte = line.split(":")[1].strip()
         elif "Guardou:" in line and "Alumínio" in line:
-            try:
-                quantidade = int(line.split("x")[0].split(":")[1].strip())
-            except ValueError:
-                return  # Ignorar se houver erro de conversão
+            quantidade = int(line.split("x")[0].split(":")[1].strip())
 
     if passaporte and quantidade > 0:
         update_sheet(passaporte, quantidade)
@@ -57,10 +55,10 @@ def update_sheet(passaporte, quantidade):
     from datetime import datetime
 
     dias = {
-        0: "SEG/TER", 1: "SEG/TER",  # Segunda e Terça
-        2: "QUA/QUI", 3: "QUA/QUI",  # Quarta e Quinta
-        4: "SEX/SAB", 5: "SEX/SAB",  # Sexta e Sábado
-        6: "DOM"  # Domingo (reset)
+        0: "SEG/TER", 1: "SEG/TER",
+        2: "QUA/QUI", 3: "QUA/QUI",
+        4: "SEX/SAB", 5: "SEX/SAB",
+        6: "DOM"
     }
 
     hoje = datetime.today().weekday()
@@ -73,35 +71,35 @@ def update_sheet(passaporte, quantidade):
     if cell:
         row = cell.row
         col = 5  # Coluna onde está o Alumínio
-        try:
-            atual = int(aba.cell(row, col).value or 0)
-        except ValueError:
-            atual = 0
-
-        aba.update_cell(row, col, atual + quantidade)
+        aba.update_cell(row, col, int(aba.cell(row, col).value) + quantidade)
     else:
-        aba.append_row([passaporte, "", "", "", quantidade])  # Preenche corretamente
+        aba.append_row([passaporte, quantidade])
 
     print(f"Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
 
 # ======== EVENTO QUANDO UMA MENSAGEM É ENVIADA NO CANAL ======== #
 @client.event
+async def on_ready():
+    print(f'✅ Bot conectado como {client.user}')
+
+@client.event
 async def on_message(message):
-    if message.author.bot:
-        return  # Ignora mensagens de outros bots
-    
-    process_message(message)
+    if not message.author.bot:
+        process_message(message)
 
-# ======== INICIAR O BOT ======== #
-async def start_bot():
-    await client.start(DISCORD_TOKEN)
+# ======== INICIAR O BOT E O FLASK EM PARALELO ======== #
+def run_discord_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(client.start(DISCORD_TOKEN))
 
-# Criar a tarefa assíncrona
-import asyncio
-loop = asyncio.get_event_loop()
-loop.create_task(start_bot())
-
-# Mantém o container ativo no Cloud Run
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))  # Porta já configurada
+    from threading import Thread
+
+    # Rodar o bot do Discord em uma thread separada
+    discord_thread = Thread(target=run_discord_bot)
+    discord_thread.start()
+
+    # Rodar o Flask na thread principal
+    port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
