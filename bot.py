@@ -111,9 +111,5 @@ if __name__ == "__main__":
     discord_thread = Thread(target=run_discord_bot)
     discord_thread.start()
 
-    # Adiciona um log para ver se o Flask está rodando corretamente
-    port = int(os.getenv("PORT", 8080))
-    print(f"🚀 Iniciando Flask na porta {port}...")
-
     # Rodar o Flask na thread principal
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=8080)
