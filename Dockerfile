@@ -18,4 +18,3 @@ EXPOSE 8080
 
 # Comando para iniciar o Flask e o bot do Discord
 CMD ["python", "bot.py"]
-
