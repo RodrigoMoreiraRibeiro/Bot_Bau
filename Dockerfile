@@ -1,18 +1,18 @@
-# Usa a imagem oficial do Python
-FROM python:3.10
+# Usa uma imagem Python leve
+FROM python:3.9-slim
 
-# Define o diretório de trabalho dentro do container
+# Define diretório de trabalho
 WORKDIR /app
 
-# Copia os arquivos do projeto
-COPY requirements.txt requirements.txt
-COPY bot.py bot.py
+# Copia os arquivos
+COPY bot.py .  
+COPY requirements.txt .
 
-# Instala as dependências
+# Instala dependências
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expõe a porta que o Cloud Run usa
+# Expor a porta 8080 para o Cloud Run
 EXPOSE 8080
 
-# Comando para rodar o bot
+# Executar o bot
 CMD ["python", "bot.py"]
