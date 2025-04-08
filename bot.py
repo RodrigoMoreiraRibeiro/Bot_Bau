@@ -31,6 +31,19 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 client = gspread.authorize(creds)
 sheet = client.open(SHEET_NAME)
 
+# Testa acesso à planilha
+SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha
+sheet = client.open(SHEET_NAME)
+print("✅ Conectado à planilha:", sheet.title)
+
+# Testa acesso a uma aba específica
+worksheet = sheet.worksheet("FARM SEG E TER")
+print("✅ Conectado à aba:", worksheet.title)
+
+# Testa escrita
+worksheet.append_row(["Teste", "123"])
+print("✅ Escrita na planilha realizada com sucesso!")
+
 # Configurar Intents do Discord
 intents = discord.Intents.default()
 intents.messages = True
