@@ -5,6 +5,7 @@ import discord
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask
+from datetime import datetime
 
 # Configurações do Flask para manter o container ativo no Cloud Run
 app = Flask(__name__)
@@ -14,10 +15,10 @@ def home():
     return "Bot está rodando!", 200
 
 # ======== CONFIGURAÇÕES ======== #
-
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GSPREAD_CREDENTIALS_BASE64 = os.getenv("GOOGLE_CREDENTIALS")
 SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha no Google Sheets
+CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))  # ID do canal do Discord
 
 # Decodifica as credenciais do Google Sheets
 creds_json = json.loads(base64.b64decode(GSPREAD_CREDENTIALS_BASE64))
@@ -33,6 +34,21 @@ intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
 client = discord.Client(intents=intents)
+
+# ======== FUNÇÃO PARA OBTER A ABA CORRETA ======== #
+def obter_aba_do_dia():
+    """Retorna a aba correta da planilha com base no dia da semana."""
+    DIA_ABA_MAP = {
+        "Monday": "SEG/TER",
+        "Tuesday": "SEG/TER",
+        "Wednesday": "QUA/QUI",
+        "Thursday": "QUA/QUI",
+        "Friday": "SEX/SAB",
+        "Saturday": "SEX/SAB",
+        "Sunday": "DOM"
+    }
+    hoje = datetime.today().strftime("%A")  # Nome do dia da semana em inglês
+    return DIA_ABA_MAP.get(hoje, "DOM")  # Default para "DOM" se der erro
 
 # ======== FUNÇÃO PARA PROCESSAR MENSAGEM ======== #
 def process_message(message):
@@ -51,17 +67,7 @@ def process_message(message):
 
 # ======== FUNÇÃO PARA ATUALIZAR PLANILHA ======== #
 def update_sheet(passaporte, quantidade):
-    from datetime import datetime
-
-    dias = {
-        0: "SEG/TER", 1: "SEG/TER",  # Segunda e Terça
-        2: "QUA/QUI", 3: "QUA/QUI",  # Quarta e Quinta
-        4: "SEX/SAB", 5: "SEX/SAB",  # Sexta e Sábado
-        6: "DOM"  # Domingo (reset)
-    }
-
-    hoje = datetime.today().weekday()
-    aba_nome = dias[hoje]
+    aba_nome = obter_aba_do_dia()
     aba = sheet.worksheet(aba_nome)
 
     # Busca o passaporte na planilha
@@ -72,9 +78,9 @@ def update_sheet(passaporte, quantidade):
         col = 5  # Coluna onde está o Alumínio
         aba.update_cell(row, col, int(aba.cell(row, col).value) + quantidade)
     else:
-        aba.append_row([passaporte, quantidade])
+        aba.append_row([passaporte, "", "", "", quantidade])  # Adiciona o passaporte na coluna 1 e Alumínio na coluna 5
 
-    print(f"Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
+    print(f"✅ Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
 
 # ======== EVENTO QUANDO UMA MENSAGEM É ENVIADA NO CANAL ======== #
 @client.event
