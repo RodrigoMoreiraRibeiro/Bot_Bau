@@ -17,11 +17,11 @@ def home():
 # ======== CONFIGURAÇÕES ======== #
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GSPREAD_CREDENTIALS_BASE64 = os.getenv("GOOGLE_CREDENTIALS")
+GOOGLE_CREDENTIALS_BASE64 = os.getenv("GOOGLE_CREDENTIALS_BASE64")
 SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha no Google Sheets
 
 # Decodifica as credenciais do Google Sheets
-creds_json = json.loads(base64.b64decode(GSPREAD_CREDENTIALS_BASE64))
+creds_json = json.loads(base64.b64decode(GOOGLE_CREDENTIALS_BASE64))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(
     creds_json,
     ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -73,9 +73,9 @@ def update_sheet(passaporte, quantidade):
         col = 5  # Coluna onde está o Alumínio
         aba.update_cell(row, col, int(aba.cell(row, col).value) + quantidade)
     else:
-        aba.append_row([passaporte, quantidade])
+        aba.append_row([passaporte, "", "", "", quantidade])  # Garante que o Alumínio fica na coluna 5
 
-    print(f"Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
+    print(f"✅ Atualizado: {passaporte} adicionou {quantidade} Alumínio em {aba_nome}")
 
 # ======== EVENTO QUANDO UMA MENSAGEM É ENVIADA NO CANAL ======== #
 @client.event
@@ -84,7 +84,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    print(f"Mensagem recebida: {message.content}")
+    print(f"📩 Mensagem recebida: {message.content}")
     if not message.author.bot:
         process_message(message)
 
