@@ -35,8 +35,22 @@ def health():
     """Endpoint para verificação de saúde do container"""
     status = {
         "discord_connected": discord_client.is_ready() if discord_client else False,
+        "discord_status": {
+            "client_exists": discord_client is not None,
+            "token_set": bool(DISCORD_TOKEN),
+            "token_length": len(DISCORD_TOKEN) if DISCORD_TOKEN else 0,
+            "last_error": getattr(discord_client, "_last_error", None)
+        },
         "sheets_connected": sheet is not None,
-        "timestamp": datetime.now().isoformat()
+        "sheets_status": {
+            "client_exists": client is not None,
+            "sheet_name": SHEET_NAME,
+            "sheet_title": sheet.title if sheet else None
+        },
+        "timestamp": datetime.now().isoformat(),
+        "environment": {
+            "sheets_configured": bool(GOOGLE_CREDENTIALS and SHEET_NAME)
+        }
     }
     
     if all([status["discord_connected"], status["sheets_connected"]]):
@@ -583,16 +597,61 @@ async def periodic_tasks():
 # ======================== INICIAR O BOT E O FLASK EM PARALELO ======================== #
 
 def run_discord_bot():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Adicionar tarefa periódica ao loop do Discord
-    loop.create_task(periodic_tasks())
-    
-    # Iniciar o bot Discord
-    loop.run_until_complete(discord_client.start(DISCORD_TOKEN))
+    try:
+        logger.info("🚀 Configurando loop do Discord...")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Validar o token do Discord
+        if not DISCORD_TOKEN:
+            logger.error("❌ Token do Discord não configurado!")
+            return
+        
+        logger.info(f"🔑 Usando token Discord: {len(DISCORD_TOKEN)} caracteres")
+        
+        # Adicionar tarefa periódica ao loop do Discord
+        logger.info("⏰ Configurando tarefas periódicas...")
+        loop.create_task(periodic_tasks())
+        
+        # Registrar um handler para capturar erros
+        discord_client._last_error = None
+        
+        @discord_client.event
+        async def on_error(event, *args, **kwargs):
+            import traceback
+            error = traceback.format_exc()
+            discord_client._last_error = error
+            logger.error(f"❌ Erro no Discord (evento {event}): {error}")
+        
+        # Iniciar o bot Discord
+        logger.info("🚀 Iniciando cliente Discord com asyncio...")
+        loop.run_until_complete(discord_client.start(DISCORD_TOKEN))
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        discord_client._last_error = str(e)
+        logger.error(f"❌ Erro fatal ao iniciar Discord: {str(e)}")
+        logger.error(f"Detalhes: {error_details}")
 
 if __name__ == "__main__":
+    logger.info("🚀 Iniciando aplicação...")
+    
+    # Verificar variáveis de ambiente críticas
+    if not DISCORD_TOKEN:
+        logger.critical("❌ DISCORD_TOKEN não está configurado! O bot não funcionará corretamente.")
+    else:
+        logger.info(f"✓ DISCORD_TOKEN configurado ({len(DISCORD_TOKEN)} caracteres)")
+    
+    if not GOOGLE_CREDENTIALS:
+        logger.critical("❌ GOOGLE_CREDENTIALS não está configurado! O bot não poderá acessar o Google Sheets.")
+    else:
+        logger.info(f"✓ GOOGLE_CREDENTIALS configurado ({len(GOOGLE_CREDENTIALS)} caracteres)")
+    
+    if not SHEET_NAME:
+        logger.critical("❌ SHEET_NAME não está configurado!")
+    else:
+        logger.info(f"✓ SHEET_NAME configurado: {SHEET_NAME}")
+    
     # Iniciar o Flask em uma thread separada PRIMEIRO
     logger.info("🚀 Iniciando servidor Flask...")
     flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=8080))
@@ -600,10 +659,10 @@ if __name__ == "__main__":
     flask_thread.start()
     logger.info("✅ Servidor Flask iniciado na porta 8080")
     
-    # Esperar um pouco para garantir que o Flask inicializou
-    time.sleep(3)
+    # Aguardar um pouco para o Flask inicializar
+    time.sleep(2)
     
-    # Agora tentar conectar ao Google Sheets
+    # Tentar conectar ao Google Sheets
     try:
         logger.info("🔄 Tentando conectar ao Google Sheets...")
         connect_to_sheets()
@@ -618,17 +677,29 @@ if __name__ == "__main__":
     discord_thread.daemon = True
     discord_thread.start()
     
-    # Manter a thread principal viva
+    # Manter a thread principal viva e verificar saúde periodicamente
     try:
         while True:
-            # Tentar reconectar se a conexão estiver perdida
-            if sheet is None:
+            # Verificar saúde das conexões
+            sheets_ok = sheet is not None
+            discord_ok = discord_client.is_ready() if discord_client else False
+            
+            logger.info(f"🔍 Verificação de saúde: Discord={discord_ok}, Sheets={sheets_ok}")
+            
+            # Tentar reconectar serviços com problemas
+            if not sheets_ok:
                 logger.info("🔄 Tentando reconectar ao Google Sheets...")
                 try:
                     reconnect_sheets()
                 except Exception as e:
-                    logger.error(f"❌ Erro na reconexão: {str(e)}")
+                    logger.error(f"❌ Erro na reconexão do Sheets: {str(e)}")
             
-            time.sleep(3600)  # Verifica a cada hora
+            if not discord_ok and discord_client:
+                logger.warning("⚠️ Cliente Discord existe mas não está pronto. Verificando status...")
+                # Não podemos reconectar o Discord facilmente, apenas logar o problema
+                if hasattr(discord_client, "_last_error") and discord_client._last_error:
+                    logger.error(f"❌ Último erro Discord: {discord_client._last_error}")
+            
+            time.sleep(300)  # Verifica a cada 5 minutos
     except KeyboardInterrupt:
         logger.info("👋 Programa interrompido manualmente.")
