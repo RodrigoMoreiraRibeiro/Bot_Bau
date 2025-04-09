@@ -114,7 +114,7 @@ def reconnect_sheets():
         return None
 
 # Primeira conexão ao iniciar
-connect_to_sheets()
+# connect_to_sheets()
 
 # ======================== FUNÇÃO PARA EXTRAIR DADOS DA MENSAGEM ======================== #
 
@@ -594,10 +594,30 @@ def run_discord_bot():
     loop.run_until_complete(discord_client.start(DISCORD_TOKEN))
 
 if __name__ == "__main__":
+    # Iniciar o Flask em uma thread separada PRIMEIRO
+    logger.info("🚀 Iniciando servidor Flask...")
+    flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=8080))
+    flask_thread.daemon = True
+    flask_thread.start()
+    logger.info("✅ Servidor Flask iniciado na porta 8080")
+    
+    # Tentar conectar ao Google Sheets (mas não interromper se falhar)
+    try:
+        logger.info("🔄 Tentando conectar ao Google Sheets...")
+        connect_to_sheets()
+    except Exception as e:
+        logger.error(f"❌ Erro ao conectar com Google Sheets: {str(e)}")
+        logger.info("⚠️ O bot continuará tentando reconectar periodicamente")
+    
     # Rodar o bot do Discord em uma thread separada
+    logger.info("🔄 Iniciando bot Discord...")
     discord_thread = Thread(target=run_discord_bot)
     discord_thread.daemon = True
     discord_thread.start()
-
-    # Rodar o Flask na thread principal
-    app.run(host="0.0.0.0", port=8080)
+    
+    # Manter a thread principal viva
+    try:
+        while True:
+            time.sleep(3600)  # Verifica a cada hora
+    except KeyboardInterrupt:
+        logger.info("👋 Programa interrompido manualmente.")
