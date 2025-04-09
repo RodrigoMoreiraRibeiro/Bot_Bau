@@ -601,10 +601,14 @@ if __name__ == "__main__":
     flask_thread.start()
     logger.info("✅ Servidor Flask iniciado na porta 8080")
     
-    # Tentar conectar ao Google Sheets (mas não interromper se falhar)
+    # Esperar um pouco para garantir que o Flask inicializou
+    time.sleep(3)
+    
+    # Agora tentar conectar ao Google Sheets
     try:
         logger.info("🔄 Tentando conectar ao Google Sheets...")
         connect_to_sheets()
+        logger.info("✅ Conexão com Google Sheets estabelecida com sucesso!")
     except Exception as e:
         logger.error(f"❌ Erro ao conectar com Google Sheets: {str(e)}")
         logger.info("⚠️ O bot continuará tentando reconectar periodicamente")
@@ -618,6 +622,14 @@ if __name__ == "__main__":
     # Manter a thread principal viva
     try:
         while True:
+            # Tentar reconectar se a conexão estiver perdida
+            if sheet is None:
+                logger.info("🔄 Tentando reconectar ao Google Sheets...")
+                try:
+                    reconnect_sheets()
+                except Exception as e:
+                    logger.error(f"❌ Erro na reconexão: {str(e)}")
+            
             time.sleep(3600)  # Verifica a cada hora
     except KeyboardInterrupt:
         logger.info("👋 Programa interrompido manualmente.")
