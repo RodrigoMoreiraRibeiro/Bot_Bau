@@ -49,7 +49,6 @@ def health():
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 SHEET_NAME = os.getenv("SHEET_NAME")  # Nome da planilha do Google Sheets
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1356403382918709309"))  # ID do canal para monitorar
 PAINEL_CONTROLE = os.getenv("PAINEL_CONTROLE", "PAINEL DE CONTROLE")  # Nome da aba do painel de controle
 
 # Define o diretório de dados com base no ambiente
