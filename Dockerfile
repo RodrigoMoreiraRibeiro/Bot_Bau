@@ -1,20 +1,19 @@
-# Usa uma imagem oficial do Python
-FROM python:3.10
+FROM python:3.9-slim
 
-# Define o diretório de trabalho no container
 WORKDIR /app
 
-# Copia os arquivos do projeto para o container
-COPY . .
-
-# Instala as dependências
+# Instalar dependências
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Define a variável de ambiente para a porta do Flask
-ENV PORT=8080
+# Criar diretório para os dados
+RUN mkdir -p /app/data
 
-# Expõe a porta 8080
+# Copiar código
+COPY app/ .
+
+# Porta para Flask
 EXPOSE 8080
 
-# Comando para iniciar o Flask e o bot do Discord
-CMD ["python", "bot.py"]
+# Comando para iniciar a aplicação
+CMD ["python", "main.py"]

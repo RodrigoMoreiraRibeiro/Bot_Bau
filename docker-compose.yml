@@ -1,0 +1,20 @@
+
+version: '3'
+
+services:
+  bot:
+    build: .
+    container_name: aluminio-bot
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - bot-data:/app/data
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GOOGLE_CREDENTIALS=${GOOGLE_CREDENTIALS}
+      - SHEET_NAME=${SHEET_NAME}
+      - PAINEL_CONTROLE=${PAINEL_CONTROLE}
+
+volumes:
+  bot-data:
